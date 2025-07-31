@@ -219,13 +219,91 @@ chat_prompt = ChatPromptTemplate.from_message([
 chain_chat_prompt | chat
 chain.invoke({"user_input":"안녕하세요? 한국의 대표적인 관광지 3곳을 추천해 주세요"})
 
-
-
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 +++ 4. LLM 모델 튜닝: 모델 파라미터(model parameter) 설정                  +++
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
+주요 파라미터 
+   + Temperature : 생성된 텍스트의 다양성 조정, 값이 작으면 예측 가능, 크면 예측이 어려움
+   + Max Tokens : 생성할 최대 토큰 수 지정 : 생성할 텍스트의 길이 제한
+   + Top P(Top Probability) : 생성 과정에서 특정 확률 분포 내에서 상위 P% 토근만을 고려, 다양성 조정에 도움
+   + Frequency Panalty (빈도 페널티) : 값이 클수록 이미 등장한 단어나 구절이 다시 등장할 확률을 감소 (0 ~1)
+   + Presence Penalty (존재 패널티) : 텍스트 내에서 단어의 존재 유무에 따라 그 단어의 선택 확률을 조정, 
+                                  값이 클수록 새로운 단어 사용이 장려 (0 ~1)
+   + Stop Sequence (정지 시퀀스) : 특정 단어나 구절이 등장할 경우 생성을 멈추도록 설정, 
+                                  출력을 특정 포인트에서 종료하고자 할 때 사용
+
+
+##########################################################
+##  모델에 직접 파라미터를 전달 (모델 생성 시점)
+
+from langchain_openai import ChatOpenAI
+
+# 모델 파라미터 설정
+params = {
+     "temperatue": 0.7,     # 생성된 텍스트의 다양성 조정
+     "max_tokens": 100,     # 생성된 최대 토큰 수
+}
+
+kwargs = {
+     "frequency_panalty" : 0.5,   # 이미 등장한 단어의 재등장 확률을 조정
+     "presence_penalty" : 0.5,    # 새로운 단어의 도입을 장려
+     "stop": ["\n"]               # 정지 시퀀스 설정 
+}
+
+# 모델 인스턴스를 생성할 때 설정
+model = ChatOpenAI(model="gpt1-3.5-turbo-0125", **params, model_kwargs=kwargs)
+
+# 모델 호출
+question = "태양계에서 가장 큰 행성은 무엇인가요?"
+response = model.invoke(input=question)
+
+# 전체 응답 출력
+print(response)
+
+##########################################################
+##  모델에 직접 파라미터를 전달 (모델 생성 시점)
+
+# 모델 파라미터 설정
+params = {
+     "temperatue": 0.7,     # 생성된 텍스트의 다양성 조정
+     "max_tokens": 10,     # 생성된 최대 토큰 수
+}
+
+# 모델 인스턴스를 호출할 때 전달
+response = model.invoke(input=question, **params)
+
+# 문자열 출력
+print(response.content)
+
+##########################################################
+##  모델에 추가적인 파라미터를 전달 
+##    . bind 메서드를 사용하여 체인에 새로운 파라미터를 추가하여 연결 가능
+##    . 다양한 상황에 맞게 모델의 동작을 제어
+
+from langchain_core.prompts import ChatPromptTemplate
+
+prompt = ChatPromptTemplate.from message([
+     ("system", "이 시스템은 천문학 질문에 답변할 수 있습니다."),
+     ("user", "{user_input}"),
+])
+
+model = ChatOpenAI(model="gpt-3.5-turbo-0125", max_tokens=100)
+
+message = prompt.format_messages(user_input="태양계에서 가장 큰 행성은 무엇인가요?")
+
+before_answer = model.invoke(messages)
+
+# binding 이전 출력
+print(before_answer)
+
+# 모델 호출 시 추가적인 인수를 전달하기 위해 bind 메서드 사용(응답의 최대 길이를 10 토근으로 제한)
+chain = prompt | model.bind(max_tokens=10)
+after_answer = chain.invoke("user_input": "태양계에서 가장 큰 행성은 무엇인가요?")
+
+# binding 이후 출력
+print(after_answer)
 
 
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
