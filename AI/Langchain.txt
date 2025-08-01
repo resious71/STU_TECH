@@ -311,6 +311,102 @@ print(after_answer)
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
+- RAG (Retrieval-Augmented Generation) : LLM을 확장하여, 주어진 컨텍스트나 질문에 대해 더욱 정확하고
+      풍부한 정보를 제공하는 방법, 모델이 학습 데이터에 포함되지 않은 외부 데이터를 실시간으로 검색하고 
+      이를 바탕으로 답변을 생성하는 과정을 포함 
+      >> 환각을 방지하고 모델이 최신 정보를 반영하거나 더 넓은 지식을 활용할 수 있게 함
+
+- RAG 모델의 기본 구조 
+    . 검색 단계(Retrieval Phase) --> 생성 단계(Generation Phase)
+
+- RAG 모델의 장점
+    . 풍부한 정보 제공
+    . 실시간 정보 반영
+    . 환각 방지
+
+##########################################################
+##   RAG 파이프라인
+##   Load Data - Text Split - Indexing - Retrieval - Generation     
+
+> !pip install -q langchain langchain-openai tiktoken chromadb
+
+# Data Loader - 웹 페이지 데이터 가져오기
+from langchain_community.document_loaders import WebBaseLoader
+
+# 위키피디아 정책가 지침 
+url = "https://ko.wikipedia.org/wiki/%EC%9C%84%ED%82%A4%EB%B0%B1%EA%B3%BC:%EC%A0%95%EC%B1%85%EA%B3%BC_%EC%A7%80%EC%B9%A8"
+loader = WebBaseLoader(url)
+
+# 웹페이지 텍스트 -> Documents
+docs = loader.load()
+
+print(len(docs))
+print(len(docs[0].pange_content))
+print(docs[0].page_content[5000:6000])
+
+# Text Split (Documents --> Small chunks: Documents)
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+splits = text_splitter.split_documents(docs)
+
+print(len(splits))
+print(splits[10])
+
+# page_content 속성
+splits[10].page_content
+
+# metadata 속성
+splits[10].metadata
+
+# indexing (Texts -> Embedding -> Store)
+from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
+
+vectorstore = Chroma.from_documents(documents=splits,
+                                    embedding=OpenAIEmbeddings())
+
+docs = vectorstore.similarity_search("격하 과정에 대해서 설명해 주세요.")
+print(len(docs))
+print(docs[0].page_content)
+
+# Retrieval ~ Generation
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+
+# Prompt
+template = ''' Answer the question based only on the following context:
+{context}
+
+Question: {question}
+'''
+
+prompt = ChatPromptTemplate.from_template(template)
+
+# LLM
+model = ChatOpenAI(model='gpt-3.5-turbo-0125', temperature=0)
+
+# Rretriever
+retriever = vectorstore.as_retriever()
+
+# Combine Documents
+def format_docs(docs):
+     return '\n\n'.join(doc.page_content for doc in docs)
+
+# RAG Chain 연결
+rag_chain = (
+     {'context': retriever | format_docs, 'question': RunnablePassthrough()}
+     | prompt
+     | model
+     | StrOutputParser()
+)
+
+# Chain 실행
+rag_chain.invoke("격하 과정에 대해서 설명해주세요.")
+
 
 
 
